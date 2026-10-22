@@ -12,6 +12,10 @@ const DEFAULT_ACCOUNTS = 2;
 // abre no navegador padrão. Se o login/vínculo do jogo usar outro provedor, inclua aqui.
 const GAME_HOSTS = ['pokeidle.io', 'twitch.tv', 'kick.com', 'discord.com', 'google.com'];
 const LIVE_HOSTS = ['twitch.tv', 'kick.com'];
+// Rastreadores/sincronização de cookies que as páginas de live tentavam abrir (editável)
+const LIVE_BLOCKED_HOSTS = ['amazon-adsystem.com', 'eskimi.com', 'tynt.com', 'krushmedia.com'];
+// Qualidade do vídeo das lives (menos qualidade = menos CPU, memória e rede). 'auto' não força nada.
+const QUALITIES = { min: '160p30', low: '360p30', mid: '480p30', high: '720p60', auto: '' };
 
 const file = () => path.join(app.getPath('userData'), 'config.json');
 
@@ -47,4 +51,26 @@ function accountOrder(count) {
   return ids;
 }
 
-module.exports = { GAME_URL, MAX_ACCOUNTS, GAME_HOSTS, LIVE_HOSTS, load, save, accountCount, accountOrder };
+function liveQuality() {
+  const k = load().liveQuality;
+  return Object.prototype.hasOwnProperty.call(QUALITIES, k) ? k : 'min';
+}
+const liveQualityValue = () => QUALITIES[liveQuality()];
+
+// Quantas lives da Twitch abrir no máximo (cada uma é um player de vídeo: é o que mais pesa)
+function maxTwitch() {
+  const n = load().maxTwitch;
+  return Number.isInteger(n) && n >= 0 && n <= 12 ? n : 6;
+}
+
+// Sessões abertas, na ordem das abas. Migra a configuração antiga (contagem + ordem) quando não há lista salva.
+function sessionIds() {
+  const saved = load().sessions;
+  if (Array.isArray(saved)) {
+    const ids = saved.filter((id, i) => Number.isInteger(id) && id >= 1 && id <= MAX_ACCOUNTS && saved.indexOf(id) === i);
+    if (ids.length) return ids;
+  }
+  return accountOrder(accountCount());
+}
+
+module.exports = { LIVE_BLOCKED_HOSTS, QUALITIES, liveQuality, liveQualityValue, maxTwitch, sessionIds, GAME_URL, MAX_ACCOUNTS, GAME_HOSTS, LIVE_HOSTS, load, save, accountCount, accountOrder };

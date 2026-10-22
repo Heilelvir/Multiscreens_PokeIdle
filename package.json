@@ -1,6 +1,6 @@
 {
   "name": "pokemulti-local",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Várias contas do PokeIdle em uma janela, com sessões isoladas",
   "main": "main.js",
   "license": "MIT",

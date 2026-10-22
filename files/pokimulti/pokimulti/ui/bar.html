@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'">
+<style>
+  :root {
+    --bg: #161019; --panel: #241a2e; --panel-hover: #31233f; --line: #43345a;
+    --text: #ece6f2; --muted: #a99bbd; --accent: #8b6cff; --ok: #2fa866; --live: #ff6b6b;
+  }
+  html, body {
+    margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 12.5px "Segoe UI", system-ui, sans-serif; overflow: hidden; user-select: none;
+  }
+  #bar {
+    display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 10px; box-sizing: border-box;
+    background: linear-gradient(180deg, #1c1324, #140e19); border-top: 1px solid var(--line);
+    box-shadow: 0 -1px 0 rgba(139, 108, 255, .18); overflow-x: auto; scrollbar-width: none;
+  }
+  .group { display: flex; align-items: center; gap: 4px; }
+  .grow { flex: 1; }
+  .divider { width: 1px; height: 20px; background: var(--line); margin: 0 4px; flex: none; }
+  button {
+    display: inline-flex; align-items: center; height: 26px; padding: 0 10px; flex: none; white-space: nowrap;
+    background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+    font: inherit; cursor: pointer; transition: background .12s, border-color .12s;
+  }
+  button:hover:not(:disabled) { background: var(--panel-hover); border-color: #5b4a78; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button:disabled { opacity: .4; cursor: default; }
+  button.on { background: #1f4d36; border-color: var(--ok); color: #d8ffe9; }
+  button.menu { font-size: 15px; padding: 0 9px; }
+  .count { color: var(--muted); margin-left: 6px; }
+  button.on .count { color: #a6e8c4; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--live); margin-right: 7px; }
+
+  .tab { display: flex; align-items: center; gap: 1px; padding: 2px; flex: none; border: 1px solid var(--line); border-radius: 8px; background: #1d1524; }
+  .tab.selected { border-color: var(--accent); background: #2a1f3a; box-shadow: 0 0 0 1px rgba(139, 108, 255, .35), 0 2px 8px rgba(0, 0, 0, .35); }
+  .tab:hover:not(.selected) { border-color: #5b4a78; }
+  .tab.popped { border-color: var(--ok); }
+  .tab .name { max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 8px; line-height: 22px; font-weight: 600; cursor: pointer; }
+  .tab button, .tools button { height: 22px; padding: 0 6px; border: none; background: transparent; border-radius: 5px; }
+  .tab button:hover:not(:disabled), .tools button:hover:not(:disabled) { background: var(--panel-hover); }
+  .tab .muted { background: #5a2330; }
+  .tab input { width: 96px; height: 20px; background: #0f0a14; color: var(--text); border: 1px solid var(--accent); border-radius: 5px; font: inherit; padding: 0 5px; outline: none; }
+  .tools { display: flex; align-items: center; gap: 1px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: #1d1524; flex: none; }
+  .tools .zoomval { min-width: 40px; justify-content: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tools .zoomval.changed { color: #ffd479; }
+  .tools .on { background: #1f4d36; }
+  @media (max-width: 1250px) { .tab .name, .tab input { max-width: 64px; width: 64px; } }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<script src="bar.js"></script>
+</body>
+</html>

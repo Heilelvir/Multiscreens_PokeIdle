@@ -11,4 +11,5 @@ contextBridge.exposeInMainWorld('bar', {
       typeof extra === 'string' ? extra.slice(0, 40) : Number.isFinite(extra) ? extra : null
     ),
   onState: (cb) => ipcRenderer.on('bar:state', (_e, s) => cb(s)),
+  onRename: (cb) => ipcRenderer.on('bar:rename', (_e, i) => cb(i)),
 });

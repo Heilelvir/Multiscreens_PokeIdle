@@ -1,15 +1,6 @@
 'use strict';
 const { shell } = require('electron');
-
-function hostAllowed(url, hosts) {
-  try {
-    const u = new URL(url);
-    if (u.protocol !== 'https:') return false;
-    return hosts.some((h) => u.hostname === h || u.hostname.endsWith('.' + h));
-  } catch {
-    return false;
-  }
-}
+const { hostAllowed, hostBlocked } = require('./net-utils');
 
 // Evita que uma página abra dezenas de abas no navegador do usuário
 let lastExternal = 0;
@@ -35,19 +26,29 @@ function hardenSession(ses) {
   ses.setDevicePermissionHandler(() => false);
 }
 
-function hardenContents(wc, allowedHosts) {
+// Cancela pedidos a domínios de rastreamento/anúncio listados (só dispara para esses domínios, custo desprezível).
+function blockHosts(ses, hosts) {
+  if (ses.__blocked) return;
+  ses.__blocked = true;
+  const urls = hosts.flatMap((h) => [`*://${h}/*`, `*://*.${h}/*`]);
+  ses.webRequest.onBeforeRequest({ urls }, (details, cb) => cb({ cancel: hostBlocked(details.url, hosts) }));
+}
+
+// external: true  → endereços fora da lista abrem no navegador padrão (usado nas contas do jogo)
+// external: false → são apenas bloqueados, em silêncio (usado nas Lives: ali popups/redirecionamentos são anúncios)
+function hardenContents(wc, allowedHosts, { external = true } = {}) {
   wc.setWindowOpenHandler(({ url }) => {
-    openExternalSafe(url);
+    if (external) openExternalSafe(url);
     return { action: 'deny' };
   });
   const guard = (event, url) => {
     if (hostAllowed(url, allowedHosts)) return;
     event.preventDefault();
-    openExternalSafe(url);
+    if (external) openExternalSafe(url);
   };
   wc.on('will-navigate', guard);
   wc.on('will-redirect', guard);
   wc.on('will-attach-webview', (e) => e.preventDefault());
 }
 
-module.exports = { hostAllowed, openExternalSafe, hardenSession, hardenContents };
+module.exports = { hostAllowed, openExternalSafe, hardenSession, hardenContents, blockHosts };

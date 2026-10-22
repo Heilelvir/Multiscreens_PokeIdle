@@ -2,22 +2,21 @@
 // Janela "Lives": mostra, numa grade, as lives que dão bônus (Twitch + até 2 da Kick), cada uma numa aba
 // SILENCIADA (só o áudio daquela aba). O vídeo continua tocando normalmente, como em qualquer aba muda.
 // Uma aba por live (não por conta), para não multiplicar espectadores.
+const path = require('path');
 const { BaseWindow, WebContentsView } = require('electron');
 const cfg = require('./config');
 const sec = require('./security');
 const { parseSnapshot, urlFor, MAX_KICK } = require('./lives-parse');
+const { chromeUA } = require('./net-utils');
 
 const POLL_MS = 5000;
 
-function createLives({ getSlots, onChange, notify }) {
+function createLives({ getSlots, onChange, notify, onInput, t = (k) => k }) {
   let desired = { tw: [], kick: [] };
   let win = null;
   const views = new Map(); // "tw:login" | "kick:slug" -> { view, nome }
   let primed = false; // a 1ª carga não gera notificação (só mudanças depois dela)
-  const twitchCap = () => {
-    const n = cfg.load().maxTwitch; // opcional em config.json: limita as lives da Twitch para gastar menos RAM
-    return Number.isInteger(n) ? Math.min(12, Math.max(0, n)) : 12;
-  };
+  const liveIds = new Set(); // ids dos webContents das lives (para o preload poder pedir a qualidade)
 
   async function collect() {
     const tw = new Map();
@@ -46,14 +45,22 @@ function createLives({ getSlots, onChange, notify }) {
     const view = new WebContentsView({
       webPreferences: {
         partition: 'persist:lives', // login da Twitch/Kick feito uma vez, aqui dentro
+        preload: path.join(__dirname, 'live-preload.js'),
         sandbox: true, contextIsolation: true, nodeIntegration: false,
         autoplayPolicy: 'no-user-gesture-required', // aba muda precisa tocar sozinha
         backgroundThrottling: false,
+        spellcheck: false,
       },
     });
+    view.setBackgroundColor('#000000');
     const wc = view.webContents;
-    sec.hardenSession(wc.session);
-    sec.hardenContents(wc, cfg.LIVE_HOSTS);
+    const ses = wc.session;
+    sec.hardenSession(ses);
+    sec.blockHosts(ses, cfg.LIVE_BLOCKED_HOSTS);
+    if (!ses.__ua) { ses.__ua = true; ses.setUserAgent(chromeUA(process.versions.chrome, process.platform)); } // login sem "navegador não suportado"
+    sec.hardenContents(wc, cfg.LIVE_HOSTS, { external: false }); // popups/redirecionamentos de anúncio são só bloqueados
+    if (onInput) wc.on('before-input-event', onInput);
+    liveIds.add(wc.id);
     const mute = () => { if (!wc.isDestroyed()) wc.setAudioMuted(true); };
     mute();
     wc.on('did-finish-load', mute);
@@ -65,7 +72,7 @@ function createLives({ getSlots, onChange, notify }) {
   function layout() {
     if (!win || win.isDestroyed()) return;
     const n = views.size;
-    win.setTitle(n ? `Lives (${n}), abas silenciadas` : 'Lives: nenhuma live com bônus no ar');
+    win.setTitle(n ? t('livesTitle', n) : t('livesNone'));
     if (!n) return;
     const { width, height } = win.getContentBounds();
     const cols = Math.ceil(Math.sqrt(n));
@@ -89,6 +96,7 @@ function createLives({ getSlots, onChange, notify }) {
     for (const [key, v] of views) {
       if (want.has(key)) continue;
       win.contentView.removeChildView(v.view);
+      liveIds.delete(v.view.webContents.id);
       v.view.webContents.close();
       views.delete(key);
       removed.push(v.nome);
@@ -109,7 +117,7 @@ function createLives({ getSlots, onChange, notify }) {
   async function refresh() {
     const c = await collect();
     if (!c.any) return; // contas ainda carregando: mantém o que já se sabe
-    desired = { tw: c.tw.slice(0, twitchCap()), kick: pickKick(c.kick) };
+    desired = { tw: c.tw.slice(0, cfg.maxTwitch()), kick: pickKick(c.kick) };
     sync(!primed);
     primed = true;
     onChange?.();
@@ -117,11 +125,16 @@ function createLives({ getSlots, onChange, notify }) {
 
   function open() {
     if (win && !win.isDestroyed()) { win.show(); win.focus(); return; }
-    win = new BaseWindow({ width: 1280, height: 720, title: 'Lives', autoHideMenuBar: true });
+    win = new BaseWindow({ width: 1280, height: 720, title: 'Lives', autoHideMenuBar: true, backgroundColor: '#000000' });
+    win.on('focus', () => { // clicar na janela devolve o teclado a uma live, para os atalhos continuarem valendo
+      const first = views.values().next().value;
+      if (first && !first.view.webContents.isDestroyed()) first.view.webContents.focus();
+    });
     win.on('resize', layout);
     win.on('closed', () => {
       for (const { view } of views.values()) if (!view.webContents.isDestroyed()) view.webContents.close();
       views.clear();
+      liveIds.clear();
       win = null;
       onChange?.();
     });
@@ -136,6 +149,10 @@ function createLives({ getSlots, onChange, notify }) {
 
   return {
     open,
+    retitle: layout,
+    refresh,
+    owns: (wc) => !!wc && liveIds.has(wc.id),
+    reload() { for (const { view } of views.values()) if (!view.webContents.isDestroyed()) view.webContents.reload(); },
     state: () => ({ count: desired.tw.length + desired.kick.length, open: !!win && !win.isDestroyed() }),
     destroy() { clearInterval(timer); if (win && !win.isDestroyed()) win.close(); },
   };
