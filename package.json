@@ -16,12 +16,12 @@
     "electron-builder": "^26.15.3"
   },
   "build": {
-    "appId": "com.Heil.pokemulti",
+    "appId": "com.seunome.pokemulti",
     "productName": "PokeMulti",
     "asar": true,
-    "files": ["main.js", "src/**", "ui/**", "package.json"],
+    "files": ["main.js", "src/**", "ui/**", "assets/**", "package.json"],
     "directories": { "output": "dist" },
-    "win": { "target": ["nsis"] },
+    "win": { "target": ["nsis"], "icon": "assets/icon.ico" },
     "nsis": {
       "oneClick": false,
       "perMachine": false,

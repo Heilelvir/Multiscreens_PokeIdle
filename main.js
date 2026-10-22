@@ -1,6 +1,6 @@
 'use strict';
 const path = require('path');
-const { app, BaseWindow, WebContentsView, BrowserWindow, ipcMain, dialog, Notification } = require('electron');
+const { app, BaseWindow, WebContentsView, BrowserWindow, ipcMain, dialog, Notification, nativeImage } = require('electron');
 const cfg = require('./src/config');
 const sec = require('./src/security');
 const { createLives } = require('./src/lives');
@@ -12,7 +12,8 @@ if (!gotLock) app.quit();
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 
-const BAR_H = 32;
+const APP_ICON = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png')); // ícone da janela/barra de tarefas
+const BAR_H = 36;
 const MAX_COLS = 2;
 
 let mainWin = null;
@@ -69,7 +70,7 @@ function toggleHelp() {
     return;
   }
   helpWin = new BrowserWindow({
-    width: 640, height: 560, title: 'Atalhos', autoHideMenuBar: true,
+    width: 640, height: 560, title: 'Atalhos', autoHideMenuBar: true, icon: APP_ICON,
     webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
   sec.hardenContents(helpWin.webContents, []);
@@ -145,7 +146,7 @@ function togglePopOut(index) {
   if (!s) return;
   if (s.win) { s.win.close(); return; } // o 'close' abaixo devolve a conta à grade
 
-  const w = new BaseWindow({ width: 1100, height: 700, title: `PokeMulti: conta ${s.id}`, autoHideMenuBar: true });
+  const w = new BaseWindow({ width: 1100, height: 700, title: `PokeMulti: conta ${s.id}`, autoHideMenuBar: true, icon: APP_ICON });
   mainWin.contentView.removeChildView(s.view);
   w.contentView.addChildView(s.view);
   s.view.setVisible(true);
@@ -266,7 +267,7 @@ function setAccountCount(count) {
 
 function createWindow() {
   mainWin = new BaseWindow({
-    width: 1600, height: 900, autoHideMenuBar: true, title: 'PokeMulti',
+    width: 1600, height: 900, autoHideMenuBar: true, title: 'PokeMulti', icon: APP_ICON,
   });
   mainWin.maximize(); // maximizada, não em tela cheia: a barra de tarefas continua à vista (F11 alterna)
   createBar();
