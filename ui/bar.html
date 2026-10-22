@@ -29,6 +29,17 @@
   button.on { background: #1f4d36; border-color: var(--ok); color: #d8ffe9; }
   .count { color: var(--muted); margin-left: 6px; }
   button.on .count { color: #a6e8c4; }
+  .chip { display: flex; align-items: center; gap: 1px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: #1d1524; }
+  .chip.popped { border-color: var(--ok); }
+  .chip button { height: 22px; padding: 0 6px; border: none; background: transparent; border-radius: 5px; }
+  .chip button:hover { background: var(--panel-hover); }
+  .chip .name { max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; line-height: 22px; font-weight: 600; }
+  .chip .muted { background: #5a2330; }
+  .chip .zoomval { min-width: 38px; justify-content: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .chip .zoomval.changed { color: #ffd479; }
+  .chip input { width: 84px; height: 20px; background: #0f0a14; color: var(--text); border: 1px solid var(--accent); border-radius: 5px; font: inherit; padding: 0 5px; outline: none; }
+  @media (max-width: 1400px) { .chip .name, .chip input { max-width: 60px; width: 60px; } }
+  #bar { overflow-x: auto; scrollbar-width: none; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--live); margin-right: 7px; }
 </style>
 </head>

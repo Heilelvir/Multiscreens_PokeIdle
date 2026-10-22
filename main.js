@@ -14,6 +14,27 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 
 const APP_ICON = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png')); // ícone da janela/barra de tarefas
 const BAR_H = 36;
+
+// ---------- preferências por conta (nome, som, zoom): ficam salvas por id de conta ----------
+let slotPrefs = {};
+const clampZoom = (z) => Math.min(2, Math.max(0.5, Math.round(z * 10) / 10));
+const cleanName = (v) => String(v).replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, 20);
+function getPrefs(id) {
+  const p = slotPrefs[id] || {};
+  return { name: typeof p.name === 'string' ? cleanName(p.name) : '', muted: p.muted === true, zoom: Number.isFinite(p.zoom) ? clampZoom(p.zoom) : 1 };
+}
+function setPrefs(id, patch) {
+  slotPrefs = { ...slotPrefs, [id]: { ...getPrefs(id), ...patch } };
+  cfg.save({ slotPrefs });
+}
+function applyPrefs(s) {
+  const wc = s.view.webContents;
+  if (wc.isDestroyed()) return;
+  const p = getPrefs(s.id);
+  wc.setAudioMuted(p.muted);
+  wc.setZoomFactor(p.zoom);
+}
+const slotTitle = (s) => `PokeMulti: ${getPrefs(s.id).name || 'conta ' + s.id}`;
 const MAX_COLS = 2;
 
 let mainWin = null;
@@ -24,7 +45,7 @@ let focused = null; // null = grade; índice em `slots` = só essa conta em tela
 const slots = []; // [{ id, view, win }]  win = janela própria quando a conta está "destacada"
 
 // ---------- barra superior ----------
-const BAR_ACTIONS = new Set(['accounts', 'grid', 'lives', 'help', 'pop']);
+const BAR_ACTIONS = new Set(['accounts', 'grid', 'lives', 'help', 'pop', 'mute', 'zoom', 'rename']);
 
 function barState() {
   return {
@@ -32,7 +53,10 @@ function barState() {
     max: cfg.MAX_ACCOUNTS,
     focused,
     lives: lives ? lives.state() : { count: 0, open: false },
-    slots: slots.map((s) => ({ id: s.id, popped: !!s.win })),
+    slots: slots.map((s) => {
+      const p = getPrefs(s.id);
+      return { id: s.id, popped: !!s.win, name: p.name, muted: p.muted, zoom: Math.round(p.zoom * 100) };
+    }),
   };
 }
 const pushBar = () => {
@@ -52,15 +76,35 @@ function createBar() {
   barView.webContents.loadFile(path.join(__dirname, 'ui', 'bar.html'));
 
   ipcMain.handle('bar:get', (e) => (e.sender === barView.webContents ? barState() : null));
-  ipcMain.on('bar:action', (e, name, arg) => {
+  ipcMain.on('bar:action', (e, name, arg, extra) => {
     if (e.sender !== barView.webContents || !BAR_ACTIONS.has(name)) return;
-    if (name === 'accounts') setAccountCount(slots.length >= cfg.MAX_ACCOUNTS ? 2 : cfg.MAX_ACCOUNTS);
-    else if (name === 'grid') setFocus(null);
+    const slot = Number.isInteger(arg) && arg >= 0 && arg < slots.length ? slots[arg] : null;
+    let back = false; // devolve o teclado ao jogo, para os atalhos continuarem valendo
+    if (name === 'accounts') { setAccountCount(slots.length >= cfg.MAX_ACCOUNTS ? 2 : cfg.MAX_ACCOUNTS); back = true; }
+    else if (name === 'grid') { setFocus(null); back = true; }
     else if (name === 'lives') lives.open();
     else if (name === 'help') toggleHelp();
-    else if (name === 'pop' && Number.isInteger(arg) && arg >= 0 && arg < slots.length) togglePopOut(arg);
+    else if (name === 'pop' && slot) togglePopOut(arg);
+    else if (name === 'mute' && slot) { setPrefs(slot.id, { muted: !getPrefs(slot.id).muted }); applyPrefs(slot); back = true; }
+    else if (name === 'zoom' && slot && [-1, 0, 1].includes(extra)) {
+      const z = extra === 0 ? 1 : getPrefs(slot.id).zoom + extra * 0.1;
+      setPrefs(slot.id, { zoom: clampZoom(z) });
+      applyPrefs(slot);
+      back = true;
+    } else if (name === 'rename' && slot && typeof extra === 'string') {
+      setPrefs(slot.id, { name: cleanName(extra) });
+      if (slot.win) slot.win.setTitle(slotTitle(slot));
+      updateTitle();
+      back = true;
+    }
     pushBar();
+    if (back) refocus();
   });
+}
+
+function refocus() {
+  const s = (focused !== null && slots[focused]) || slots.find((x) => !x.win);
+  if (s && !s.win) s.view.webContents.focus();
 }
 
 // ---------- ajuda ----------
@@ -112,7 +156,7 @@ function layout() {
 
 function updateTitle() {
   if (!mainWin || mainWin.isDestroyed()) return;
-  mainWin.setTitle(focused === null ? 'PokeMulti' : `PokeMulti: posição ${focused + 1} (conta ${slots[focused].id})`);
+  mainWin.setTitle(focused === null ? 'PokeMulti' : `PokeMulti: ${getPrefs(slots[focused].id).name || `conta ${slots[focused].id}`} (posição ${focused + 1})`);
 }
 
 function setFocus(index) {
@@ -146,7 +190,7 @@ function togglePopOut(index) {
   if (!s) return;
   if (s.win) { s.win.close(); return; } // o 'close' abaixo devolve a conta à grade
 
-  const w = new BaseWindow({ width: 1100, height: 700, title: `PokeMulti: conta ${s.id}`, autoHideMenuBar: true, icon: APP_ICON });
+  const w = new BaseWindow({ width: 1100, height: 700, title: slotTitle(s), autoHideMenuBar: true, icon: APP_ICON });
   mainWin.contentView.removeChildView(s.view);
   w.contentView.addChildView(s.view);
   s.view.setVisible(true);
@@ -240,8 +284,11 @@ function createSlot(id) {
   sec.hardenContents(wc, cfg.GAME_HOSTS);
   wc.on('before-input-event', shortcutHandler(id));
   mainWin.contentView.addChildView(view);
+  const slot = { id, view, win: null };
+  slots.push(slot);
+  applyPrefs(slot);
+  ['dom-ready', 'did-navigate'].forEach((ev) => wc.on(ev, () => applyPrefs(slot))); // o zoom zera ao navegar
   wc.loadURL(cfg.GAME_URL);
-  slots.push({ id, view, win: null });
 }
 
 function removeSlotAt(i) {
@@ -266,8 +313,9 @@ function setAccountCount(count) {
 }
 
 function createWindow() {
+  slotPrefs = cfg.load().slotPrefs || {};
   mainWin = new BaseWindow({
-    width: 1600, height: 900, autoHideMenuBar: true, title: 'PokeMulti', icon: APP_ICON,
+    width: 1600, height: 900, minWidth: 1000, minHeight: 600, autoHideMenuBar: true, title: 'PokeMulti', icon: APP_ICON,
   });
   mainWin.maximize(); // maximizada, não em tela cheia: a barra de tarefas continua à vista (F11 alterna)
   createBar();

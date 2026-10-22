@@ -35,6 +35,9 @@ You don't need to install anything else.
 | Open the bonus livestreams | `Ctrl+T` or the **Lives** button |
 | Reload the current account | `F5` |
 | Toggle full screen | `F11` |
+| Mute one account | The 🔊 / 🔇 button in the account's block on the top bar |
+| Zoom one account (50% to 200%) | The − and + buttons in the account's block (click the value to return to 100%) |
+| Name an account | Click its name on the top bar |
 
 ### About Lives
 The **Lives** button opens a window with the streams that grant XP bonuses, each in a **muted** tab. The first time, log in to Twitch (and Kick, if you use it) inside that window, with the same account linked to the game. The login is saved.

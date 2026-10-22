@@ -35,6 +35,9 @@ Não precisa instalar mais nada.
 | Abrir as lives que dão bônus | `Ctrl+T` ou botão **Lives** |
 | Recarregar a conta atual | `F5` |
 | Tela cheia | `F11` |
+| Silenciar uma conta | Botão 🔊 / 🔇 do bloco da conta, na barra superior |
+| Dar zoom numa conta (50% a 200%) | Botões − e + do bloco da conta (clique no valor para voltar a 100%) |
+| Dar um nome a uma conta | Clique no nome dela na barra superior |
 
 ### Sobre as Lives
 O botão **Lives** abre uma janela com as transmissões que dão bônus de XP, cada uma numa aba **sem som**. Na primeira vez, faça login na Twitch (e na Kick, se usar) dentro dessa janela, com a mesma conta vinculada ao jogo. O login fica salvo.
