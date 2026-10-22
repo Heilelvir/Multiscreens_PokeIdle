@@ -1,0 +1,50 @@
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const { app } = require('electron');
+
+// Link com o seu código de indicação
+const GAME_URL = 'https://pokeidle.io/?ref=656DPSE';
+const MAX_ACCOUNTS = 4;
+const DEFAULT_ACCOUNTS = 2;
+
+// Domínios em que o quadrante de uma conta pode navegar. Qualquer outro endereço https
+// abre no navegador padrão. Se o login/vínculo do jogo usar outro provedor, inclua aqui.
+const GAME_HOSTS = ['pokeidle.io', 'twitch.tv', 'kick.com', 'discord.com', 'google.com'];
+const LIVE_HOSTS = ['twitch.tv', 'kick.com'];
+
+const file = () => path.join(app.getPath('userData'), 'config.json');
+
+function load() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(file(), 'utf8'));
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+function save(patch) {
+  try {
+    const tmp = file() + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify({ ...load(), ...patch }, null, 2));
+    fs.renameSync(tmp, file()); // escrita atômica: não corrompe o arquivo se o app fechar no meio
+  } catch (err) {
+    console.error('não foi possível salvar a configuração:', err);
+  }
+}
+
+function accountCount() {
+  const n = load().accounts;
+  return Number.isInteger(n) && n >= 1 && n <= MAX_ACCOUNTS ? n : DEFAULT_ACCOUNTS;
+}
+
+// ids 1..count na ordem salva; ids sem posição vão para o fim
+function accountOrder(count) {
+  const saved = Array.isArray(load().order) ? load().order : [];
+  const ids = saved.filter((id, i) => Number.isInteger(id) && id >= 1 && id <= count && saved.indexOf(id) === i);
+  for (let id = 1; id <= count; id++) if (!ids.includes(id)) ids.push(id);
+  return ids;
+}
+
+module.exports = { GAME_URL, MAX_ACCOUNTS, GAME_HOSTS, LIVE_HOSTS, load, save, accountCount, accountOrder };

@@ -1,0 +1,41 @@
+{
+  "name": "pokemulti-local",
+  "version": "1.0.0",
+  "description": "Várias contas do PokeIdle em uma janela, com sessões isoladas",
+  "main": "main.js",
+  "license": "MIT",
+  "private": true,
+  "engines": { "node": ">=22.12" },
+  "scripts": {
+    "start": "electron .",
+    "test": "node --check main.js && node --test test/*.test.js",
+    "dist": "npm test && electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.Heil.pokemulti",
+    "productName": "PokeMulti",
+    "asar": true,
+    "files": ["main.js", "src/**", "ui/**", "package.json"],
+    "directories": { "output": "dist" },
+    "win": { "target": ["nsis"] },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "PokeMulti-Setup-${version}.${ext}"
+    },
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true
+    }
+  }
+}

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'">
+<style>
+  html, body { margin: 0; height: 100%; background: #1b1220; color: #eee; font: 12px system-ui, sans-serif; overflow: hidden; }
+  #bar { display: flex; align-items: center; gap: 6px; padding: 0 8px; height: 32px; }
+  .sep { flex: 1; }
+  button { background: #33263f; color: #eee; border: 1px solid #54406a; border-radius: 4px; padding: 3px 9px; cursor: pointer; font: inherit; }
+  button:hover { background: #45345a; }
+  button.on { background: #2f6b3f; border-color: #4a9a5e; }
+  button.alert { background: #8a2b2b; border-color: #c55; }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<script src="bar.js"></script>
+</body>
+</html>
