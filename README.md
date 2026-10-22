@@ -1,5 +1,7 @@
 # PokeMulti
 
+**Português** · [English](README.en.md)
+
 Jogue **várias contas do [PokeIdle](https://pokeidle.io) ao mesmo tempo, numa única janela**. Cada conta tem seu próprio login e seus próprios dados, sem misturar nada.
 
 > Projeto de fã, **não oficial**. Sem afiliação com o PokeIdle, Nintendo, Game Freak, Creatures ou The Pokémon Company.
