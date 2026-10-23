@@ -11,7 +11,7 @@ Multi-account manager for **[PokeIdle](https://pokeidle.io)** on Windows: play *
 ## Features
 
 - Up to **4 sessions** in a grid, with separate logins and data for each.
-- **Bottom bar** with one tab per session: show only one, rename, mute, zoom, reload, own window, and close.
+- **Bottom bar** with one tab per session: show only one, rename, **drag to reorder**, mute, zoom, reload, own window, and close.
 - **Right-click** menu (on a tab or inside the game) with the same actions and a few more.
 - **Close a session without losing its login**: open it again with **+** and it comes back already logged in.
 - **Separate window** for any session.
@@ -48,6 +48,7 @@ Because the installer is not digitally signed, Windows may show **"Windows prote
 | Create a session | **+** button or `F6` (maximum of 4) |
 | Close a session | The tab's **✕** button, `F7`, or right-click → **Close session** |
 | Rename a session | Double-click its tab, or right-click → **Rename…** |
+| Change the order of the sessions | Drag the tab in the bottom bar (the grid follows). Alternatives: right-click → **Move…** or `Ctrl+Alt+←/→` |
 | Mute a session | The tab's 🔊 / 🔇 button |
 | Zoom (50% to 200%) | The − and + buttons in the bar (click the value to return to 100%) |
 | Zoom, sound and reload on all at once | Turn on the **All** button in the bottom bar, or use the **Sessions** menu |

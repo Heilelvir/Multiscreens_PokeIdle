@@ -4,6 +4,7 @@ let editing = false; // enquanto renomeia, não redesenha a barra (senão o camp
 let latest = null;
 let nameEls = [];
 let clickTimer = null;
+let dragFrom = null; // posição da aba que está sendo arrastada (null = nenhuma)
 
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -33,6 +34,8 @@ function startRename(i, current, nameEl) {
   input.value = current;
   input.maxLength = 20;
   input.title = latest.t.barRenameTip;
+  const tabBox = nameEl.closest('.tab');
+  if (tabBox) tabBox.draggable = false; // senão o mouse arrastaria a aba em vez de selecionar o texto
   nameEl.replaceWith(input);
   input.focus();
   input.select();
@@ -64,6 +67,39 @@ function tab(sl, i, s) {
   box.addEventListener('contextmenu', (e) => { e.preventDefault(); window.bar.action('ctx', i); });
   nameEls[i] = name;
 
+  // Arrastar para reordenar: o marcador mostra de que lado da aba alvo a aba vai cair
+  const clearMarks = () => root.querySelectorAll('.drop-before, .drop-after').forEach((n) => n.classList.remove('drop-before', 'drop-after'));
+  const isBefore = (e) => { const r = box.getBoundingClientRect(); return e.clientX < r.left + r.width / 2; };
+  const endDrag = () => {
+    dragFrom = null;
+    clearMarks();
+    box.classList.remove('dragging');
+    if (latest) render(latest); // aplica o que chegou enquanto arrastava
+  };
+  box.draggable = true;
+  box.addEventListener('dragstart', (e) => {
+    dragFrom = i;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(i));
+    box.classList.add('dragging');
+  });
+  box.addEventListener('dragover', (e) => {
+    if (dragFrom === null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    clearMarks();
+    box.classList.add(isBefore(e) ? 'drop-before' : 'drop-after');
+  });
+  box.addEventListener('drop', (e) => {
+    if (dragFrom === null) return;
+    e.preventDefault();
+    const from = dragFrom;
+    const to = dropIndex(from, i, isBefore(e));
+    endDrag();
+    if (to !== from) window.bar.action('reorder', from, to);
+  });
+  box.addEventListener('dragend', endDrag);
+
   const mute = btn(sl.muted ? '🔇' : '🔊', sl.muted ? T.barUnmuteTip : T.barMuteTip, () => window.bar.action('mute', i), { cls: sl.muted ? 'muted' : '' });
   const close = btn('✕', s.count > 1 ? T.barCloseTip : T.barLastTip, () => window.bar.action('close', i), { disabled: s.count <= 1 });
   box.append(name, mute, close);
@@ -87,7 +123,7 @@ function tools(sl, i, s) {
 function render(s) {
   if (!s) return;
   latest = s;
-  if (editing) return;
+  if (editing || dragFrom !== null) return; // não redesenha no meio de uma edição ou de um arrasto
   document.documentElement.lang = s.lang === 'en' ? 'en' : 'pt-BR';
   const T = s.t;
   root.textContent = '';

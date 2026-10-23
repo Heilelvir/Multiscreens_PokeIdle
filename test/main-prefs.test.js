@@ -384,3 +384,67 @@ test('atualizações: item no menu, caixa explica fora do app instalado e a opç
   auto().click();
   assert.strictEqual(auto().checked, true);
 });
+
+const gameWc = (id) => created.filter((v) => v.opts && v.opts.webPreferences.partition === `persist:conta${id}` && !v.webContents.closed).at(-1).webContents;
+
+test('reordenar sessões arrastando a aba: ordem, foco, seleção e persistência', () => {
+  while (state().count < 3) act('add');
+  act('grid');
+  const ids0 = ids();
+  const [a, b, c] = ids0;
+
+  act('reorder', 0, 2);                                        // arrasta a 1ª aba para o fim
+  assert.deepStrictEqual(ids().slice(0, 3), [b, c, a]);
+  assert.deepStrictEqual(saved().sessions.slice(0, 3), [b, c, a]);
+
+  act('reorder', 2, 0);                                        // e volta
+  assert.deepStrictEqual(ids(), ids0);
+
+  act('tab', 0);                                               // mostra só a 1ª sessão
+  assert.strictEqual(state().focused, 0);
+  act('reorder', 0, 2);
+  assert.strictEqual(state().focused, 2, 'o foco acompanha a sessão arrastada');
+  assert.strictEqual(state().slots[2].id, a);
+  assert.strictEqual(state().selected, 2);
+  act('reorder', 0, 1);                                        // mexer em outras abas não tira o foco da sessão
+  assert.strictEqual(state().slots[state().focused].id, a);
+  act('grid');
+  act('reorder', 2, 0); act('reorder', 1, 0);
+});
+
+test('reordenar ignora posições inválidas e a mesma posição', () => {
+  const before = JSON.stringify(ids());
+  act('reorder', 0, 0);
+  act('reorder', 0, 99);
+  act('reorder', 0, -1);
+  act('reorder', 99, 0);
+  act('reorder', 0, 'x');
+  act('reorder', 0, 1.5);
+  assert.strictEqual(JSON.stringify(ids()), before);
+});
+
+test('menu de contexto: mover para a esquerda/direita respeita as pontas', () => {
+  const lista = ids();
+  popups.length = 0;
+  act('ctx', 0);
+  const first = popups[0];
+  assert.strictEqual(first.find((i) => i.label === 'Mover para a esquerda').enabled, false);
+  assert.strictEqual(first.find((i) => i.label === 'Mover para a direita').enabled, true);
+  first.find((i) => i.label === 'Mover para a direita').click();
+  assert.deepStrictEqual(ids().slice(0, 2), [lista[1], lista[0]]);
+  popups.length = 0;
+  act('ctx', state().count - 1);
+  const last = popups[0];
+  assert.strictEqual(last.find((i) => i.label === 'Mover para a direita').enabled, false);
+  assert.strictEqual(last.find((i) => i.label === 'Mover para a esquerda').enabled, true);
+});
+
+test('Ctrl+Alt+setas continuam movendo a sessão que tem o teclado', () => {
+  const lista = ids();
+  const id = lista[1];
+  const prevented = press(gameWc(id), 'ArrowLeft', { control: true, alt: true });
+  assert.ok(prevented);
+  assert.strictEqual(ids()[0], id);
+  press(gameWc(id), 'ArrowRight', { control: true, alt: true });
+  assert.strictEqual(ids()[1], id);
+});

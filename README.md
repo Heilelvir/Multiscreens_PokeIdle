@@ -11,7 +11,7 @@ Gerenciador de múltiplas contas do **[PokeIdle](https://pokeidle.io)** para Win
 ## Funcionalidades
 
 - Até **4 sessões** em grade, com login e dados separados em cada uma.
-- **Barra inferior** com uma aba por sessão: mostrar só uma, renomear, silenciar, zoom, recarregar, janela própria e fechar.
+- **Barra inferior** com uma aba por sessão: mostrar só uma, renomear, **arrastar para reordenar**, silenciar, zoom, recarregar, janela própria e fechar.
 - **Botão direito** (na aba ou dentro do jogo) com as mesmas ações e mais algumas.
 - **Fechar uma sessão sem perder o login**: ao abrir de novo no **+**, ela volta já logada.
 - **Janela própria** para qualquer sessão.
@@ -48,6 +48,7 @@ Como o instalador não tem assinatura digital, o Windows pode exibir **"O Window
 | Criar uma sessão | Botão **+** ou `F6` (máximo de 4) |
 | Fechar uma sessão | Botão **✕** da aba, `F7` ou botão direito → **Fechar sessão** |
 | Renomear uma sessão | Duplo clique na aba, ou botão direito → **Renomear…** |
+| Mudar a ordem das sessões | Arraste a aba na barra inferior (a grade acompanha). Alternativas: botão direito → **Mover…** ou `Ctrl+Alt+←/→` |
 | Silenciar uma sessão | Botão 🔊 / 🔇 da aba |
 | Dar zoom (50% a 200%) | Botões − e + da barra (clique no valor para voltar a 100%) |
 | Zoom, som e recarregar em todas de uma vez | Ligue o botão **Todas** na barra inferior, ou use o menu **Sessões** |

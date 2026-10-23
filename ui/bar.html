@@ -35,9 +35,12 @@
   button.on .count { color: #a6e8c4; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--live); margin-right: 7px; }
 
-  .tab { display: flex; align-items: center; gap: 1px; padding: 2px; flex: none; border: 1px solid var(--line); border-radius: 8px; background: #1d1524; }
+  .tab { cursor: grab; display: flex; align-items: center; gap: 1px; padding: 2px; flex: none; border: 1px solid var(--line); border-radius: 8px; background: #1d1524; }
   .tab.selected { border-color: var(--accent); background: #2a1f3a; box-shadow: 0 0 0 1px rgba(139, 108, 255, .35), 0 2px 8px rgba(0, 0, 0, .35); }
   .tab:hover:not(.selected) { border-color: #5b4a78; }
+  .tab.dragging { opacity: .4; cursor: grabbing; }
+  .tab.drop-before { box-shadow: -4px 0 0 var(--accent); }
+  .tab.drop-after { box-shadow: 4px 0 0 var(--accent); }
   .tab.popped { border-color: var(--ok); }
   .tab .name { max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 8px; line-height: 22px; font-weight: 600; cursor: pointer; }
   .tab button, .tools button { height: 22px; padding: 0 6px; border: none; background: transparent; border-radius: 5px; }
@@ -54,6 +57,7 @@
 </head>
 <body>
 <div id="bar"></div>
+<script src="reorder.js"></script>
 <script src="bar.js"></script>
 </body>
 </html>

@@ -57,7 +57,7 @@ const slotTitle = (s) => t('titlePop', slotLabel(s));
 const validIndex = (i) => Number.isInteger(i) && i >= 0 && i < slots.length;
 
 // ---------- barra inferior ----------
-const BAR_ACTIONS = new Set(['menu', 'all', 'tab', 'add', 'close', 'mute', 'zoom', 'reload', 'pop', 'rename', 'grid', 'lives', 'ctx']);
+const BAR_ACTIONS = new Set(['menu', 'all', 'reorder', 'tab', 'add', 'close', 'mute', 'zoom', 'reload', 'pop', 'rename', 'grid', 'lives', 'ctx']);
 
 function barState() {
   return {
@@ -109,6 +109,7 @@ function createBar() {
       case 'add': addSession(); back = true; break;
       case 'close': if (slot) closeSession(arg); back = true; break;
       case 'all': applyAll = !applyAll; break;
+      case 'reorder': if (slot && Number.isInteger(extra)) reorderSlot(arg, extra); break;
       case 'mute': if (slot) muteTargets(slot); back = true; break;
       case 'zoom': if (slot && [-1, 0, 1].includes(extra)) zoomTargets(slot, extra); back = true; break;
       case 'reload': if (slot) targets(slot).forEach(reloadSlot); back = true; break;
@@ -186,6 +187,8 @@ function showSessionMenu(slot) {
     { label: focused === i ? t('ctxGrid') : t('ctxFocus'), click: () => { if (slot.win) slot.win.focus(); else setFocus(focused === idx() ? null : idx()); } },
     { label: t('ctxReset'), click: () => resetAccount(idx()) },
     { type: 'separator' },
+    { label: t('ctxMoveLeft'), enabled: i > 0, click: () => moveSlot(idx(), -1) },
+    { label: t('ctxMoveRight'), enabled: i < slots.length - 1, click: () => moveSlot(idx(), 1) },
     { label: t('ctxAdd'), enabled: slots.length < cfg.MAX_ACCOUNTS, click: () => addSession() },
     { label: t('ctxClose'), enabled: slots.length > 1, click: () => closeSession(idx()) },
   ]);
@@ -348,18 +351,28 @@ function afterSlotsChanged() {
   pushBar();
 }
 
+// Move a sessão da posição `from` para a posição `to` (índice final). A grade segue a ordem das abas.
+function reorderSlot(from, to) {
+  if (!validIndex(from) || !validIndex(to) || from === to) return;
+  const [s] = slots.splice(from, 1);
+  slots.splice(to, 0, s);
+  const track = (i) => { // acompanha a sessão em foco/selecionada depois da troca
+    if (i === null) return null;
+    if (i === from) return to;
+    if (from < to && i > from && i <= to) return i - 1;
+    if (from > to && i >= to && i < from) return i + 1;
+    return i;
+  };
+  focused = track(focused);
+  selected = track(selected);
+  afterSlotsChanged();
+}
+
 function moveSlot(from, dir) {
   const to = from + dir;
-  if (from < 0 || to < 0 || to >= slots.length) return;
-  [slots[from], slots[to]] = [slots[to], slots[from]];
-  if (focused === from) focused = to; else if (focused === to) focused = from;
-  if (selected === from) selected = to; else if (selected === to) selected = from;
-  saveOrder();
-  layout();
+  if (!validIndex(from) || !validIndex(to)) return;
+  reorderSlot(from, to);
   slots[to].view.webContents.focus();
-  updateTitle();
-  buildMenu();
-  pushBar();
 }
 
 // ---------- abrir uma sessão em janela própria (e devolver à grade) ----------
