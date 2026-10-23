@@ -10,7 +10,9 @@ const { EventEmitter } = require('events');
 
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'pokimulti-'));
 const created = [];
-const opened = [];    // endereços enviados ao navegador padrão
+const opened = [];
+const dialogs = [];   // caixas de diálogo exibidas
+require('../src/browser').settings.delay = 0;    // endereços enviados ao navegador padrão
 let snapshot = null;  // o que as contas "informam" sobre lives
 let wcId = 0;
 const menus = [];       // modelos passados a Menu.buildFromTemplate
@@ -59,7 +61,7 @@ const electron = {
     getApplicationMenu: () => appMenu,
   },
   ipcMain: { on: (n, f) => { ipc.on[n] = f; }, handle: (n, f) => { ipc.handle[n] = f; } },
-  dialog: { showMessageBox: async () => ({ response: 0 }) }, Notification: class { show() {} }, nativeImage: { createFromPath: () => ({}) },
+  dialog: { showMessageBox: async (o) => { dialogs.push(o); return { response: 0 }; } }, Notification: class { show() {} }, nativeImage: { createFromPath: () => ({}) },
   shell: { openExternal: async (u) => { opened.push(u); } },
   nativeTheme: {}, session: { defaultSession: ses },
 };
@@ -221,6 +223,38 @@ test('fundo preto nas contas', () => {
   assert.ok(games.every((v) => v.bg === '#000000'));
 });
 
+const liveMode = (label) => submenu('&Exibir').find((i) => i.label === 'Abrir lives em').submenu.find((i) => i.label.startsWith(label)).click();
+
+test('Lives abrem no navegador padrão por padrão: todas juntas, sem janela interna e sem repetir', async () => {
+  snapshot = JSON.stringify({ tw: { lives: ['ana', 'bia', 'caio', 'dani', 'edu', 'fabi', 'gil', 'hugo'].map((login) => ({ login })) }, kk: null });
+  assert.strictEqual(require('../src/config').liveMode(), 'browser');
+  const before = created.length;
+  opened.length = 0;
+  act('lives');
+  await new Promise((r) => setTimeout(r, 80));
+  assert.strictEqual(created.length, before, 'nenhuma view interna foi criada');
+  assert.deepStrictEqual(opened, ['ana', 'bia', 'caio', 'dani', 'edu', 'fabi'].map((l) => `https://www.twitch.tv/${l}`)); // limite padrão de 6
+  assert.strictEqual(state().lives.browser, true);
+  assert.strictEqual(state().lives.dot, false, 'sem lives novas para abrir');
+  opened.length = 0;
+  act('lives');
+  await new Promise((r) => setTimeout(r, 80));
+  assert.deepStrictEqual(opened, [], 'apertar de novo não duplica as abas');
+  // "Reabrir todas" abre de novo todas
+  submenu('&Exibir').find((i) => i.label === 'Reabrir todas as lives no navegador').click();
+  await new Promise((r) => setTimeout(r, 80));
+  assert.strictEqual(opened.length, 6);
+});
+
+test('mudar o modo das Lives salva a escolha e habilita a qualidade só dentro do app', () => {
+  const qualidade = () => submenu('&Exibir').find((i) => i.label === 'Qualidade das lives');
+  assert.strictEqual(qualidade().enabled, false);
+  liveMode('Dentro do app');
+  assert.strictEqual(saved().liveMode, 'app');
+  assert.strictEqual(qualidade().enabled, true);
+  assert.strictEqual(submenu('&Exibir').find((i) => i.label === 'Reabrir todas as lives no navegador').enabled, false);
+});
+
 test('Lives: aba silenciada, fundo preto, UA de Chrome, rastreadores bloqueados e nenhum popup vai ao navegador', async () => {
   snapshot = JSON.stringify({ tw: { lives: ['ana', 'bia', 'caio', 'dani', 'edu', 'fabi', 'gil', 'hugo'].map((login) => ({ login })) }, kk: null });
   const before = created.length;
@@ -283,4 +317,70 @@ test('em contas do jogo, links externos ainda abrem no navegador padrão (com li
   const g = created.filter((v) => v !== created[0] && v.opts && v.opts.webPreferences.partition === 'persist:conta1' && !v.webContents.closed).at(-1);
   g.webContents.openHandler({ url: 'https://discord.com/invite/x' });
   assert.deepStrictEqual(opened, ['https://discord.com/invite/x']);
+});
+
+test('"Todas": zoom, som e recarregar valem para todas as sessões de uma vez', () => {
+  const games = () => created.filter((v) => v.opts && v.opts.webPreferences.partition && v.opts.webPreferences.partition.startsWith('persist:conta') && !v.webContents.closed);
+  while (state().count < 3) act('add');
+  submenu('&Sessões').find((i) => i.label === 'Zoom 100% em todas').click();
+  assert.ok(games().every((g) => g.webContents.zoom === 1));
+  assert.strictEqual(state().applyAll, false);
+
+  act('zoom', 0, 1);                                              // sem "Todas": só uma
+  assert.strictEqual(games().filter((g) => g.webContents.zoom === 1.1).length, 1);
+  submenu('&Sessões').find((i) => i.label === 'Zoom 100% em todas').click();
+
+  act('all');
+  assert.strictEqual(state().applyAll, true);
+  act('zoom', 0, -1);
+  assert.ok(games().every((g) => g.webContents.zoom === 0.9));    // todas diminuíram
+  act('zoom', 1, 1); act('zoom', 1, 1);
+  assert.ok(games().every((g) => g.webContents.zoom === 1.1));
+  act('zoom', 0, 0);
+  assert.ok(games().every((g) => g.webContents.zoom === 1));      // reset em todas
+
+  act('mute', 0);
+  assert.ok(games().every((g) => g.webContents.muted === true));
+  act('mute', 1);
+  assert.ok(games().every((g) => g.webContents.muted === false));
+
+  const antes = games().map((g) => g.webContents.reloads);
+  act('reload', 0);
+  assert.ok(games().every((g, i) => g.webContents.reloads === antes[i] + 1));
+
+  act('all');                                                    // desliga: volta a valer só para uma
+  assert.strictEqual(state().applyAll, false);
+  act('zoom', 0, 1);
+  assert.strictEqual(games().filter((g) => g.webContents.zoom === 1.1).length, 1);
+  submenu('&Sessões').find((i) => i.label === 'Zoom 100% em todas').click();
+});
+
+test('menu Sessões: zoom e som de todas, independentes do botão "Todas"', () => {
+  const games = () => created.filter((v) => v.opts && v.opts.webPreferences.partition && v.opts.webPreferences.partition.startsWith('persist:conta') && !v.webContents.closed);
+  const item = (l) => submenu('&Sessões').find((i) => i.label === l);
+  item('Aumentar zoom de todas').click();
+  assert.ok(games().every((g) => g.webContents.zoom === 1.1));
+  item('Diminuir zoom de todas').click(); item('Diminuir zoom de todas').click();
+  assert.ok(games().every((g) => g.webContents.zoom === 0.9));
+  item('Zoom 100% em todas').click();
+  assert.ok(games().every((g) => g.webContents.zoom === 1));
+  item('Silenciar / ativar som de todas').click();
+  assert.ok(games().every((g) => g.webContents.muted === true));
+  item('Silenciar / ativar som de todas').click();
+  assert.ok(games().every((g) => g.webContents.muted === false));
+});
+
+test('atualizações: item no menu, caixa explica fora do app instalado e a opção de verificar ao iniciar liga/desliga', () => {
+  const ajuda = () => submenu('A&juda');
+  dialogs.length = 0;
+  ajuda().find((i) => i.label === 'Verificar atualizações…').click();
+  assert.ok(dialogs.length >= 1);
+  assert.ok(String(dialogs.at(-1).message).includes('só funcionam no app instalado'));
+  const auto = () => ajuda().find((i) => i.label === 'Verificar atualizações ao iniciar');
+  assert.strictEqual(auto().checked, true);
+  auto().click();
+  assert.strictEqual(saved().updateCheck, false);
+  assert.strictEqual(auto().checked, false);
+  auto().click();
+  assert.strictEqual(auto().checked, true);
 });

@@ -1,10 +1,12 @@
 'use strict';
 const path = require('path');
-const { app, BaseWindow, WebContentsView, BrowserWindow, Menu, ipcMain, dialog, Notification, nativeImage, nativeTheme } = require('electron');
+const { app, BaseWindow, WebContentsView, BrowserWindow, Menu, ipcMain, dialog, Notification, nativeImage, nativeTheme, shell } = require('electron');
 const cfg = require('./src/config');
 const sec = require('./src/security');
 const i18n = require('./src/i18n');
 const shortcuts = require('./src/shortcuts');
+const browser = require('./src/browser');
+const { createUpdater } = require('./src/updater');
 const { createLives } = require('./src/lives');
 
 const gotLock = app.requestSingleInstanceLock();
@@ -22,6 +24,8 @@ let mainWin = null;
 let barView = null;
 let helpWin = null;
 let lives = null;
+let updater = null;
+let applyAll = false; // ligado: zoom, som e recarregar valem para todas as sessões de uma vez
 let focused = null; // null = grade; índice em `slots` = só essa sessão em tela cheia
 let selected = 0; // sessão cujos controles (zoom, recarregar, janela) aparecem na barra
 let lang = 'pt';
@@ -53,7 +57,7 @@ const slotTitle = (s) => t('titlePop', slotLabel(s));
 const validIndex = (i) => Number.isInteger(i) && i >= 0 && i < slots.length;
 
 // ---------- barra inferior ----------
-const BAR_ACTIONS = new Set(['menu', 'tab', 'add', 'close', 'mute', 'zoom', 'reload', 'pop', 'rename', 'grid', 'lives', 'ctx']);
+const BAR_ACTIONS = new Set(['menu', 'all', 'tab', 'add', 'close', 'mute', 'zoom', 'reload', 'pop', 'rename', 'grid', 'lives', 'ctx']);
 
 function barState() {
   return {
@@ -63,7 +67,8 @@ function barState() {
     max: cfg.MAX_ACCOUNTS,
     focused,
     selected: Math.min(selected, Math.max(0, slots.length - 1)),
-    lives: lives ? lives.state() : { count: 0, open: false },
+    applyAll,
+    lives: lives ? lives.state() : { count: 0, open: false, dot: false, browser: true },
     slots: slots.map((s) => {
       const p = getPrefs(s.id);
       return { id: s.id, popped: !!s.win, name: p.name, muted: p.muted, zoom: Math.round(p.zoom * 100) };
@@ -103,9 +108,10 @@ function createBar() {
         break;
       case 'add': addSession(); back = true; break;
       case 'close': if (slot) closeSession(arg); back = true; break;
-      case 'mute': if (slot) toggleMute(slot); back = true; break;
-      case 'zoom': if (slot && [-1, 0, 1].includes(extra)) zoomBy(slot, extra); back = true; break;
-      case 'reload': if (slot) reloadSlot(slot); back = true; break;
+      case 'all': applyAll = !applyAll; break;
+      case 'mute': if (slot) muteTargets(slot); back = true; break;
+      case 'zoom': if (slot && [-1, 0, 1].includes(extra)) zoomTargets(slot, extra); back = true; break;
+      case 'reload': if (slot) targets(slot).forEach(reloadSlot); back = true; break;
       case 'pop': if (slot) togglePopOut(arg); break;
       case 'rename': if (slot && typeof extra === 'string') renameSlot(slot, extra); back = true; break;
       case 'grid': setFocus(null); back = true; break;
@@ -123,10 +129,29 @@ function refocus() {
 }
 
 // ---------- ações sobre uma sessão (usadas pela barra, pelos menus e pelos atalhos) ----------
-function toggleMute(s) { setPrefs(s.id, { muted: !getPrefs(s.id).muted }); applyPrefs(s); pushBar(); }
-function zoomBy(s, dir) {
-  setPrefs(s.id, { zoom: clampZoom(dir === 0 ? 1 : getPrefs(s.id).zoom + dir * 0.1) });
-  applyPrefs(s);
+const targets = (slot) => (applyAll ? [...slots] : [slot]);
+
+function setMuted(s, muted) { setPrefs(s.id, { muted }); applyPrefs(s); }
+function setZoomBy(s, dir) { setPrefs(s.id, { zoom: clampZoom(dir === 0 ? 1 : getPrefs(s.id).zoom + dir * 0.1) }); applyPrefs(s); }
+
+// Silenciar: com "Todas" ligado, todas ficam no estado oposto ao da sessão clicada
+function muteTargets(slot) {
+  const next = !getPrefs(slot.id).muted;
+  targets(slot).forEach((s) => setMuted(s, next));
+  pushBar();
+}
+function zoomTargets(slot, dir) {
+  targets(slot).forEach((s) => setZoomBy(s, dir));
+  pushBar();
+}
+const toggleMute = (s) => muteTargets(s);
+const zoomBy = (s, dir) => zoomTargets(s, dir);
+
+// Ações do menu "Sessões" que sempre valem para todas
+function allZoom(dir) { slots.forEach((s) => setZoomBy(s, dir)); pushBar(); }
+function allMute() {
+  const next = !slots.every((s) => getPrefs(s.id).muted);
+  slots.forEach((s) => setMuted(s, next));
   pushBar();
 }
 function reloadSlot(s) { if (s && !s.view.webContents.isDestroyed()) s.view.webContents.reload(); }
@@ -182,13 +207,21 @@ function buildMenu() {
       { label: t('menuReload'), submenu: per((j) => reloadSlot(slots[j])) },
       { label: t('menuReset'), submenu: per(resetAccount) },
       { type: 'separator' },
+      { label: t('menuAllZoomIn'), click: () => allZoom(1) },
+      { label: t('menuAllZoomOut'), click: () => allZoom(-1) },
+      { label: t('menuAllZoomReset'), click: () => allZoom(0) },
+      { label: t('menuAllMute'), click: () => allMute() },
+      { type: 'separator' },
       { label: t('menuToggleCount'), ...hint('F8'), click: () => toggleCount() },
     ] },
     { label: t('menuView'), submenu: [
       { label: t('menuGrid'), ...hint('F5'), click: () => setFocus(null) },
       { label: t('menuLives'), ...hint('F9'), click: () => lives && lives.open() },
+      { label: t('menuLiveMode'), submenu: [['browser', 'modeBrowser'], ['app', 'modeApp']]
+        .map(([k, label]) => ({ label: t(label), type: 'radio', checked: cfg.liveMode() === k, click: () => setLiveMode(k) })) },
+      { label: t('menuOpenAllAgain'), enabled: cfg.liveMode() === 'browser', click: () => lives && lives.open(true) },
       { label: t('menuLiveLimit'), submenu: [2, 4, 6, 12].map((n) => ({ label: String(n), type: 'radio', checked: cfg.maxTwitch() === n, click: () => setLiveLimit(n) })) },
-      { label: t('menuLiveQuality'), submenu: [['min', 'qMin'], ['low', 'qLow'], ['mid', 'qMid'], ['high', 'qHigh'], ['auto', 'qAuto']]
+      { label: t('menuLiveQuality'), enabled: cfg.liveMode() === 'app', submenu: [['min', 'qMin'], ['low', 'qLow'], ['mid', 'qMid'], ['high', 'qHigh'], ['auto', 'qAuto']]
         .map(([k, label]) => ({ label: t(label), type: 'radio', checked: cfg.liveQuality() === k, click: () => setLiveQuality(k) })) },
       { label: t('menuFullscreen'), ...hint('F11'), click: () => mainWin.setFullScreen(!mainWin.isFullScreen()) },
     ] },
@@ -198,10 +231,20 @@ function buildMenu() {
     ] },
     { label: t('menuHelp'), submenu: [
       { label: t('menuShortcuts'), ...hint('F12'), click: () => toggleHelp() },
+      { label: t('menuCheckUpdates'), click: () => updater && updater.check(true) },
+      { label: t('menuAutoUpdate'), type: 'checkbox', checked: cfg.updateCheckEnabled(), click: () => { cfg.save({ updateCheck: !cfg.updateCheckEnabled() }); buildMenu(); } },
+      { type: 'separator' },
       { label: t('menuAbout'), click: () => showAbout() },
     ] },
   ]));
   mainWin?.setMenuBarVisibility?.(false); // a barra de menu clássica fica escondida (Alt mostra); o menu abre pelo botão ☰
+}
+
+function setLiveMode(mode) {
+  cfg.save({ liveMode: mode });
+  if (mode === 'browser') lives?.closeWindow(); // a janela interna some; as lives passam a abrir no navegador
+  buildMenu();
+  pushBar();
 }
 
 function setLiveLimit(n) {
@@ -477,8 +520,11 @@ function createWindow() {
     onChange: pushBar,
     notify: (body) => { try { new Notification({ title: t('livesChanged'), body }).show(); } catch {} },
     onInput: makeInputHandler(() => null, 'lives'),
+    launchBrowser: (urls) => browser.openUrls(urls, { allowedHosts: cfg.LIVE_HOSTS, shell }),
     t,
   });
+  updater = createUpdater({ app, dialog, getWindow: () => mainWin, t });
+  if (app.isPackaged && cfg.updateCheckEnabled()) setTimeout(() => updater.check(false), 10000).unref?.();
   buildMenu();
   ['resize', 'maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen'].forEach((ev) => mainWin.on(ev, layout));
   mainWin.on('closed', () => { lives?.destroy(); app.quit(); });

@@ -11,11 +11,13 @@ const { chromeUA } = require('./net-utils');
 
 const POLL_MS = 5000;
 
-function createLives({ getSlots, onChange, notify, onInput, t = (k) => k }) {
+function createLives({ getSlots, onChange, notify, onInput, launchBrowser, t = (k) => k }) {
   let desired = { tw: [], kick: [] };
   let win = null;
   const views = new Map(); // "tw:login" | "kick:slug" -> { view, nome }
   let primed = false; // a 1ª carga não gera notificação (só mudanças depois dela)
+  const opened = new Set();    // lives já abertas no navegador padrão
+  const announced = new Set(); // lives novas já avisadas (não repete o aviso)
   const liveIds = new Set(); // ids dos webContents das lives (para o preload poder pedir a qualidade)
 
   async function collect() {
@@ -34,6 +36,12 @@ function createLives({ getSlots, onChange, notify, onInput, t = (k) => k }) {
     }
     return { any, tw: [...tw.values()], kick: [...kick.values()] };
   }
+
+  const liveList = () => [
+    ...desired.tw.map((l) => ({ key: 'tw:' + l.id, p: 'tw', id: l.id, nome: l.nome })),
+    ...desired.kick.map((l) => ({ key: 'kick:' + l.id, p: 'kick', id: l.id, nome: l.nome })),
+  ];
+  const browserMode = () => cfg.liveMode() === 'browser';
 
   // Kick: mantém as que já estão abertas e completa até o limite
   function pickKick(live) {
@@ -119,11 +127,31 @@ function createLives({ getSlots, onChange, notify, onInput, t = (k) => k }) {
     if (!c.any) return; // contas ainda carregando: mantém o que já se sabe
     desired = { tw: c.tw.slice(0, cfg.maxTwitch()), kick: pickKick(c.kick) };
     sync(!primed);
+    const list = liveList();
+    const keys = new Set(list.map((l) => l.key));
+    for (const set of [opened, announced]) for (const k of set) if (!keys.has(k)) set.delete(k); // live que acabou e voltar conta como nova
+    if (browserMode() && primed) {
+      const fresh = list.filter((l) => !opened.has(l.key) && !announced.has(l.key));
+      fresh.forEach((l) => announced.add(l.key));
+      if (fresh.length) notify?.(t('livesNew', fresh.map((l) => l.nome).join(', ')));
+    }
     primed = true;
     onChange?.();
   }
 
-  function open() {
+  // Abre as lives no navegador padrão, todas juntas numa nova janela. `all` reabre também as já abertas.
+  async function openInBrowser(all) {
+    await refresh();
+    const list = liveList();
+    const fresh = all ? list : list.filter((l) => !opened.has(l.key));
+    if (!fresh.length) { if (list.length) notify?.(t('livesNothingNew')); return; }
+    fresh.forEach((l) => opened.add(l.key));
+    await launchBrowser?.(fresh.map((l) => urlFor(l.p, l.id)));
+    onChange?.();
+  }
+
+  function open(all = false) {
+    if (browserMode()) { openInBrowser(all); return; }
     if (win && !win.isDestroyed()) { win.show(); win.focus(); return; }
     win = new BaseWindow({ width: 1280, height: 720, title: 'Lives', autoHideMenuBar: true, backgroundColor: '#000000' });
     win.on('focus', () => { // clicar na janela devolve o teclado a uma live, para os atalhos continuarem valendo
@@ -153,7 +181,13 @@ function createLives({ getSlots, onChange, notify, onInput, t = (k) => k }) {
     refresh,
     owns: (wc) => !!wc && liveIds.has(wc.id),
     reload() { for (const { view } of views.values()) if (!view.webContents.isDestroyed()) view.webContents.reload(); },
-    state: () => ({ count: desired.tw.length + desired.kick.length, open: !!win && !win.isDestroyed() }),
+    closeWindow() { if (win && !win.isDestroyed()) win.close(); },
+    state() {
+      const list = liveList();
+      const inApp = !!win && !win.isDestroyed();
+      const dot = browserMode() ? list.some((l) => !opened.has(l.key)) : list.length > 0 && !inApp;
+      return { count: list.length, open: inApp, dot, browser: browserMode() };
+    },
     destroy() { clearInterval(timer); if (win && !win.isDestroyed()) win.close(); },
   };
 }

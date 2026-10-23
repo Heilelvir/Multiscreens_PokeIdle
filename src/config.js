@@ -57,6 +57,12 @@ function liveQuality() {
 }
 const liveQualityValue = () => QUALITIES[liveQuality()];
 
+// Onde abrir as lives: 'browser' = navegador padrão do Windows (login já feito lá); 'app' = dentro do app, silenciadas
+const liveMode = () => (load().liveMode === 'app' ? 'app' : 'browser');
+
+// Verificar atualizações ao iniciar (ligado por padrão)
+const updateCheckEnabled = () => load().updateCheck !== false;
+
 // Quantas lives da Twitch abrir no máximo (cada uma é um player de vídeo: é o que mais pesa)
 function maxTwitch() {
   const n = load().maxTwitch;
@@ -73,4 +79,4 @@ function sessionIds() {
   return accountOrder(accountCount());
 }
 
-module.exports = { LIVE_BLOCKED_HOSTS, QUALITIES, liveQuality, liveQualityValue, maxTwitch, sessionIds, GAME_URL, MAX_ACCOUNTS, GAME_HOSTS, LIVE_HOSTS, load, save, accountCount, accountOrder };
+module.exports = { liveMode, updateCheckEnabled, LIVE_BLOCKED_HOSTS, QUALITIES, liveQuality, liveQualityValue, maxTwitch, sessionIds, GAME_URL, MAX_ACCOUNTS, GAME_HOSTS, LIVE_HOSTS, load, save, accountCount, accountOrder };

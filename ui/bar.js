@@ -74,6 +74,7 @@ function tools(sl, i, s) {
   const T = s.t;
   const box = el('div', 'tools');
   box.append(
+    btn(T.barAll, T.barAllTip, () => window.bar.action('all'), { on: s.applyAll, cls: 'all' }),
     btn('−', T.barZoomOutTip, () => window.bar.action('zoom', i, -1)),
     btn(`${sl.zoom}%`, T.barZoomResetTip, () => window.bar.action('zoom', i, 0), { cls: 'zoomval' + (sl.zoom !== 100 ? ' changed' : '') }),
     btn('+', T.barZoomInTip, () => window.bar.action('zoom', i, 1)),
@@ -108,7 +109,7 @@ function render(s) {
     divider(),
     sel ? tools(sel, s.selected, s) : el('span'),
     el('span', 'grow'),
-    btn(T.barLives, T.barLivesTip, () => window.bar.action('lives'), { on: lv.open, count: String(lv.count), dot: !lv.open && lv.count > 0 })
+    btn(T.barLives, T.barLivesTip, () => window.bar.action('lives'), { on: lv.open, count: String(lv.count), dot: lv.dot })
   );
 }
 
